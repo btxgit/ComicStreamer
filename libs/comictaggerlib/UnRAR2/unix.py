@@ -48,7 +48,7 @@ def call_unrar(params):
                 pass
         if rar_executable_cached is None:
             raise UnpackerNotInstalled("No suitable RAR unpacker installed")
-            
+
     assert type(params) == list, "params must be list"
     args = [rar_executable_cached] + params
     try:
@@ -62,15 +62,16 @@ class RarFileImplementation(object):
     def init(self, password=None):
         global rar_executable_version
         self.password = password
-        
-        
+
         stdoutdata, stderrdata = self.call('v', []).communicate()
-        
+
+
         for line in stderrdata.splitlines():
             if line.strip().startswith("Cannot open"):
                 raise FileOpenError
             if line.find("CRC failed")>=0:
-                raise IncorrectRARPassword   
+                raise IncorrectRARPassword
+
         accum = []
         source = iter(stdoutdata.splitlines())
         line = ''
@@ -107,28 +108,36 @@ class RarFileImplementation(object):
             else:
                 self.comment = None
         else:
-            raise UnpackerNotInstalled("Unsupported RAR version, expected 4.x or 5.x, found: " 
+            raise UnpackerNotInstalled("Unsupported RAR version, expected 4.x or 5.x, found: "
+
                     + signature.split(" ")[1])
-                
-                
+
+
+
+
     def escaped_password(self):
         return '-' if self.password == None else self.password
-        
-        
+
+
+
+
     def call(self, cmd, options=[], files=[]):
         options2 = options + ['p'+self.escaped_password()]
         soptions = ['-'+x for x in options2]
         return call_unrar([cmd]+soptions+['--',self.archiveName]+files)
 
     def infoiter(self):
-        
+
+
         command = "v" if rar_executable_version == 4 else "l"
         stdoutdata, stderrdata = self.call(command, ['c-']).communicate()
-        
+
+
         for line in stderrdata.splitlines():
             if line.strip().startswith("Cannot open"):
                 raise FileOpenError
-            
+
+
         accum = []
         source = iter(stdoutdata.splitlines())
         line = ''
@@ -136,7 +145,8 @@ class RarFileImplementation(object):
             if line.strip().endswith('is not RAR archive'):
                 raise InvalidRARArchive
             if line.startswith("CRC failed") or line.startswith("Checksum error"):
-                raise IncorrectRARPassword  
+                raise IncorrectRARPassword
+
             line = source.next()
         line = source.next()
         i = 0
@@ -153,6 +163,7 @@ class RarFileImplementation(object):
                     data['size'] = int(fields[0])
                     attr = fields[5]
                     data['isdir'] = 'd' in attr.lower()
+
                     data['datetime'] = time.strptime(fields[3]+" "+fields[4], '%d-%m-%y %H:%M')
                     data['comment'] = None
                     yield data
@@ -168,12 +179,16 @@ class RarFileImplementation(object):
                 data['size'] = int(fields[1])
                 attr = fields[0]
                 data['isdir'] = 'd' in attr.lower()
-                data['datetime'] = time.strptime(fields[2]+" "+fields[3], '%d-%m-%y %H:%M')
+
+                try:
+                    data['datetime'] = time.strptime(fields[2]+" "+fields[3], '%d-%m-%y %H:%M')
+                except ValueError:
+                    data['datetime'] = time.strptime(fields[2]+" "+fields[3], '%Y-%m-%d %H:%M')
+
                 data['comment'] = None
                 yield data
                 i += 1
                 line = source.next()
-            
 
     def read_files(self, checker):
         res = []
@@ -182,9 +197,8 @@ class RarFileImplementation(object):
             if checkres==True and not info.isdir:
                 pipe = self.call('p', ['inul'], [info.filename]).stdout
                 res.append((info, pipe.read()))
-        return res            
+        return res
 
-          
     def extract(self, checker, path, withSubpath, overwrite):
         res = []
         command = 'x'
@@ -209,10 +223,9 @@ class RarFileImplementation(object):
         proc = self.call(command, options, names)
         stdoutdata, stderrdata = proc.communicate()
         if stderrdata.find("CRC failed")>=0 or stderrdata.find("Checksum error")>=0:
-            raise IncorrectRARPassword  
-        return res            
-            
+            raise IncorrectRARPassword
+
+        return res
+
     def destruct(self):
         pass
-
-    
